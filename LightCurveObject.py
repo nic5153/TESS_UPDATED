@@ -14,7 +14,8 @@ class LightCurve:
     def LombScargle(self):
         cadence_minutes = 2
         max_frequency = 1 / (cadence_minutes / 60)
-        frequency = np.linspace(0.05, max_frequency, 1000000)
+        frequency = np.linspace(0.05, max_frequency, 100000)
+
         ls = LombScargle(self.data[:, 1], self.data[:, 4])
         power = ls.power(frequency)
         period_hours = 24 / frequency
@@ -33,7 +34,6 @@ class LightCurve:
         plt.ylabel("Magnitude")
         plt.title("Light Curve")
         plt.legend()
-        
         
         frequency, power, period_hours = self.LombScargle()
         plt.subplot(1,2,2)

@@ -34,6 +34,7 @@ class LightCurve:
         plt.ylabel("Magnitude")
         plt.title("Light Curve")
         plt.legend()
+        plt.gca().invert_yaxis()
         
         frequency, power, period_hours = self.LombScargle()
         plt.subplot(1,2,2)
@@ -42,5 +43,6 @@ class LightCurve:
         plt.ylabel("Power")
         plt.title("Lomb-Scargle Periodogram")
         plt.legend()
+        
         
         plt.show()

@@ -51,10 +51,10 @@ class LightCurveWithConstraint:
         plt.gca().invert_yaxis()
 
         plt.subplot(1, 2, 2)
-        plt.plot(period_hours, power, label="Lomb-Scargle Periodogram with Constraint")
+        plt.plot(period_hours, power, label="Lomb-Scargle Periodogram With Constraint")
         plt.xlabel("Period (hours)")
         plt.ylabel("Power")
-        plt.title("Lomb-Scargle Periodogram with Constraint")
+        plt.title("Lomb-Scargle Periodogram With Constraint")
         plt.legend()
 
         plt.show()

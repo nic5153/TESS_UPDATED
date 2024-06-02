@@ -1,14 +1,16 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.timeseries import LombScargle
 from scipy.signal import find_peaks
 
 class LightCurveWithConstraint:
-    def __init__(self, filename, x_min=None, x_max=None, cadence_minutes=2):
+    def __init__(self, filename, x_min=None, x_max=None, cadence_minutes=2, period=None):
         self.filename = filename
         self.x_min = x_min
         self.x_max = x_max
         self.cadence_minutes = cadence_minutes
+        self.period = period
 
         self.data = self._read_data()
 
@@ -31,7 +33,7 @@ class LightCurveWithConstraint:
         ls = LombScargle(self.data[:, 1], self.data[:, 4])
         power = ls.power(frequency)
         period_hours = 24 / frequency
-        peaks, _ = find_peaks(power, height=0.30)
+        peaks, _ = find_peaks(power, height=0.20)
         print("Significant peaks:")
         for peak_index in peaks:
             peak_period = period_hours[peak_index]
@@ -39,22 +41,53 @@ class LightCurveWithConstraint:
             print(f"Period: {peak_period:.2f} hours, Power: {peak_power:.2f}")
         return frequency, power, period_hours
 
-    def plot(self):
+    def phasefold(self):
+        t = self.data[:, 1]
+        p = self.period
+        self.phi = (t/p)%1
+        return self.phi
+
+
+    def plot(self, save_dir=None):
         frequency, power, period_hours = self.lomb_scargle()
 
-        plt.subplot(1, 2, 1)
-        plt.plot(self.data[:, 1], self.data[:, 4], label="Light Curve with Constraint")
+        plt.figure()
+        plt.plot(self.data[:, 1], self.data[:, 4], label="Light Curve W/ Constraint")
         plt.xlabel("Time")
         plt.ylabel("Magnitude")
-        plt.title("Light Curve with Constraint")
+        plt.title("Light Curve W/ Constraint")
         plt.legend()
         plt.gca().invert_yaxis()
+        if save_dir:
+            plt.savefig(os.path.join(save_dir, "light_curve.png"))
+        else:
+            plt.show()
 
-        plt.subplot(1, 2, 2)
-        plt.plot(period_hours, power, label="Lomb-Scargle Periodogram With Constraint")
+        plt.figure()
+        plt.plot(period_hours, power, label="LS Periodogram W/ Constraint")
         plt.xlabel("Period (hours)")
         plt.ylabel("Power")
-        plt.title("Lomb-Scargle Periodogram With Constraint")
+        plt.title("LS Periodogram W/ Constraint")
         plt.legend()
+        if save_dir:
+            plt.savefig(os.path.join(save_dir, "periodogram.png"))
+        else:
+            plt.show()
+        
+        plt.figure()
+        self.phasefold()  # Calculate phase fold
+        sorted_indices = np.argsort(self.phi)  # Sort phase values
+        plt.plot(self.phi[sorted_indices], self.data[:, 4][sorted_indices], color='r', label="Phase Folded Curve")
+        plt.xlabel("Phase")
+        plt.ylabel("Magnitude")
+        plt.title("Phase Folded Curve")
+        plt.legend()
+        if save_dir:
+            plt.savefig(os.path.join(save_dir, "phase_folded_curve.png"))
+        else:
+            plt.show()
 
-        plt.show()
+    def save_plots(self, save_dir):
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        self.plot(save_dir)

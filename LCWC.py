@@ -75,12 +75,13 @@ class LightCurveWithConstraint:
             plt.show()
         
         plt.figure()
-        self.phasefold()  # Calculate phase fold
-        sorted_indices = np.argsort(self.phi)  # Sort phase values
+        self.phasefold()
+        sorted_indices = np.argsort(self.phi)
         plt.plot(self.phi[sorted_indices], self.data[:, 4][sorted_indices], color='r', label="Phase Folded Curve")
         plt.xlabel("Phase")
         plt.ylabel("Magnitude")
         plt.title("Phase Folded Curve")
+        plt.gca().invert_yaxis()
         plt.legend()
         if save_dir:
             plt.savefig(os.path.join(save_dir, "phase_folded_curve.png"))

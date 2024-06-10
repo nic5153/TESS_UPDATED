@@ -5,12 +5,12 @@ from LCWC import LightCurveWithConstraint
 
 filename = r"C:\Users\nic51\Code_Repos\Tess\Data\Interesting_Curves\sector65\2023iwl.txt"
 
-#3084-3085.5
+#3090.5-3095
 
 lc = LightCurve(filename)
-x_min = 3084
-x_max = 3085.5
-period = 1.81
+x_min = 3090.5
+x_max = 3095
+period = .89
 lc_wc = LightCurveWithConstraint(filename, x_min=x_min, x_max=x_max, period=period)
 
 lc.plot()

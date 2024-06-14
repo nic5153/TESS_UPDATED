@@ -57,7 +57,7 @@ class LightCurveWithConstraint:
         frequency, power, period_hours = self.lomb_scargle()
 
         plt.figure()
-        plt.plot(self.data[:, 1], self.data[:,4], label="Light Curve")
+        plt.plot(self.data[:, 1], self.data[:,4], color='g', label="Light Curve")
         plt.xlabel("Time")
         plt.ylabel("Magnitude")
         plt.title("Light Curve with Constraint")
@@ -69,7 +69,7 @@ class LightCurveWithConstraint:
             plt.show()
 
         plt.figure()
-        plt.plot(period_hours, power, label="LS Periodogram with Constraint")
+        plt.plot(period_hours, power, color='b', label="LS Periodogram with Constraint")
         plt.xlabel("Period (days)")
         plt.ylabel("Power")
         plt.title("LS Periodogram with Constraint")
@@ -83,7 +83,7 @@ class LightCurveWithConstraint:
             plt.figure()
             self.phasefold()
             sorted_indices = np.argsort(self.phi)
-            plt.scatter(self.phi[sorted_indices], self.data[:, 4][sorted_indices], color='b', s=5, label="Phase Folded Curve")
+            plt.scatter(self.phi[sorted_indices], self.data[:, 4][sorted_indices], color='m', s=5, label="Phase Folded Curve")
             plt.xlabel("Phase")
             plt.ylabel("Magnitude")
             plt.title("Phase Folded Curve")

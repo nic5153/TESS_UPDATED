@@ -5,11 +5,11 @@ from astropy.timeseries import LombScargle
 from scipy.signal import find_peaks
 
 class LightCurveWithConstraint:
-    def __init__(self, filename, x_min=None, x_max=None, cadence_minutes=2, period=None):
+    def __init__(self, filename, x_min=None, x_max=None, cadence_days=0.00277778, period=None):
         self.filename = filename
         self.x_min = x_min
         self.x_max = x_max
-        self.cadence_minutes = cadence_minutes
+        self.cadence_days = cadence_days
         self.period = period
 
         self.data = self._read_data()
@@ -26,48 +26,41 @@ class LightCurveWithConstraint:
         else:
             return data
 
-    def lomb_scargle(self):
-        max_frequency = 1 / (self.cadence_minutes / 60)
-        frequency = np.linspace(0.5, max_frequency, 10000)
-        
-        detrended_brightness = self.detrend()
 
-        ls = LombScargle(self.data[:, 1], detrended_brightness)
+    def lomb_scargle(self):
+        t = np.diff(self.data[:, 1])
+        max_frequency = 0.5 / np.mean(t)
+        frequency = np.linspace(0.01, max_frequency, 10000)
+    
+        ls = LombScargle(self.data[:, 1], self.data[:, 4])
         power = ls.power(frequency)
-        period_hours = 24 / frequency
+        period_days = 1 / frequency
+
         peaks, _ = find_peaks(power, height=0.20)
         print("Significant peaks:")
         for peak_index in peaks:
-            peak_period = period_hours[peak_index]
+            peak_period = period_days[peak_index]
             peak_power = power[peak_index]
-            print(f"Period: {peak_period:.2f} hours, Power: {peak_power:.2f}")
-        return frequency, power, period_hours
+            print(f"Period: {peak_period:.5f} days, Power: {peak_power:.5f}")
+        return frequency, power, period_days
 
     def phasefold(self):
         if self.period is None:
             raise ValueError("Period must be provided for phase folding.")
         t = self.data[:, 1]
         p = self.period
-        self.phi = (t / p) % 1
-        return self.phi
-    
-    def detrend(self, degree=2):
-        time = self.data[:, 1]
-        magnitude = self.data[:, 4]
-        coefficients = np.polyfit(time, magnitude, degree)
-        trend = np.polyval(coefficients, time)
-        detrended_magnitude = magnitude - trend + np.mean(trend)
-        return detrended_magnitude
+        self.phi = (t % p) / p  
+        sorted_indices = np.argsort(self.phi)
+        return self.phi[sorted_indices]
 
     def plot(self, save_dir=None):
         frequency, power, period_hours = self.lomb_scargle()
 
         plt.figure()
-        detrended_magnitude = self.detrend()
-        plt.plot(self.data[:, 1], detrended_magnitude, label="Detrended Light Curve")
+        plt.plot(self.data[:, 1], self.data[:,4], label="Light Curve")
         plt.xlabel("Time")
         plt.ylabel("Magnitude")
-        plt.title("Detrended Light Curve with Constraint")
+        plt.title("Light Curve with Constraint")
         plt.legend()
         plt.gca().invert_yaxis()
         if save_dir:
@@ -77,7 +70,7 @@ class LightCurveWithConstraint:
 
         plt.figure()
         plt.plot(period_hours, power, label="LS Periodogram with Constraint")
-        plt.xlabel("Period (hours)")
+        plt.xlabel("Period (days)")
         plt.ylabel("Power")
         plt.title("LS Periodogram with Constraint")
         plt.legend()
@@ -90,7 +83,7 @@ class LightCurveWithConstraint:
             plt.figure()
             self.phasefold()
             sorted_indices = np.argsort(self.phi)
-            plt.plot(self.phi[sorted_indices], self.data[:, 4][sorted_indices], color='r', label="Phase Folded Curve")
+            plt.scatter(self.phi[sorted_indices], self.data[:, 4][sorted_indices], color='b', s=5, label="Phase Folded Curve")
             plt.xlabel("Phase")
             plt.ylabel("Magnitude")
             plt.title("Phase Folded Curve")

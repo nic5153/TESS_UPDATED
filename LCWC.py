@@ -60,8 +60,8 @@ class LightCurveWithConstraint:
             raise ValueError("Please detrend the data before applying Lomb-Scargle periodogram.")
         
         t = np.diff(self.data[:, 1])
-        max_frequency = 0.5 / np.mean(t)
-        frequency = np.linspace(0.01, max_frequency, 10000)
+        max_frequency = .5 / np.mean(t)
+        frequency = np.linspace(0.0003, max_frequency, 10000)
     
         ls = LombScargle(self.data[:, 1], self.detrended_flux)
         power = ls.power(frequency)
@@ -72,7 +72,7 @@ class LightCurveWithConstraint:
         for peak_index in peaks:
             peak_period = period_days[peak_index]
             peak_power = power[peak_index]
-            print(f"Period: {peak_period:.5f} days, Power: {peak_power:.5f}")
+            print(f"Period: {peak_period:.4f} days, Power: {peak_power:.4f}")
         return frequency, power, period_days
 
     def phasefold(self):
@@ -87,7 +87,6 @@ class LightCurveWithConstraint:
     def plot(self, save_dir=None):
         fig, axs = plt.subplots(2, 1, figsize=(10, 10))
 
-        # Plot original light curve
         axs[0].plot(self.data[:, 1], self.data[:, 4], color='g', label="Original Light Curve")
         axs[0].set_xlabel("Time")
         axs[0].set_ylabel("Magnitude")
@@ -116,6 +115,7 @@ class LightCurveWithConstraint:
         plt.xlabel("Period (days)")
         plt.ylabel("Power")
         plt.title("LS Periodogram")
+        plt.xlim(0,27)
         plt.legend()
         if save_dir:
             plt.savefig(os.path.join(save_dir, "periodogram.png"))

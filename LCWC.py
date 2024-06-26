@@ -17,16 +17,20 @@ class LightCurveWithConstraint:
         self.detrended_flux = None
 
     def _read_data(self):
-        data = np.loadtxt(self.filename)
-        if self.x_min is not None and self.x_max is not None:
-            mask = (data[:, 1] >= self.x_min) & (data[:, 1] <= self.x_max)
-            return data[mask]
-        elif self.x_min is not None:
-            return data[data[:, 1] >= self.x_min]
-        elif self.x_max is not None:
-            return data[data[:, 1] <= self.x_max]
-        else:
-            return data
+        try:
+            data = np.loadtxt(self.filename)
+            if self.x_min is not None and self.x_max is not None:
+                mask = (data[:, 1] >= self.x_min) & (data[:, 1] <= self.x_max)
+                return data[mask]
+            elif self.x_min is not None:
+                return data[data[:, 1] >= self.x_min]
+            elif self.x_max is not None:
+                return data[data[:, 1] <= self.x_max]
+            else:
+                return data
+        except Exception as e:
+            print(f"Error reading data: {e}")
+            return None
 
     def _compute_aic(self, flux, trend, k):
         resid = flux - trend
@@ -35,6 +39,11 @@ class LightCurveWithConstraint:
         return aic
 
     def detrend(self, max_degree=5):
+        if max_degree == 0:
+            self.detrended_flux = self.data[:, 4]
+            self.detrended_flux -= np.mean(self.detrended_flux)
+            return
+
         t = self.data[:, 1]
         flux = self.data[:, 4]
 
@@ -53,8 +62,13 @@ class LightCurveWithConstraint:
                 best_trend = trend
 
         self.detrended_flux = flux - best_trend
-        print(f"Selected polynomial degree: {best_degree}")
+        
+        mean_flux = np.mean(flux)
+        self.detrended_flux -= np.mean(self.detrended_flux) - mean_flux
 
+        if np.mean(self.detrended_flux) > mean_flux:
+            self.detrended_flux = mean_flux - self.detrended_flux
+            
     def lomb_scargle(self):
         if self.detrended_flux is None:
             raise ValueError("Please detrend the data before applying Lomb-Scargle periodogram.")
@@ -72,7 +86,7 @@ class LightCurveWithConstraint:
         for peak_index in peaks:
             peak_period = period_days[peak_index]
             peak_power = power[peak_index]
-            print(f"Period: {peak_period:.4f} days, Power: {peak_power:.4f}")
+            print(f"Period: {peak_period:.6f} days, Power: {peak_power:.6f}")
         return frequency, power, period_days
 
     def phasefold(self):
@@ -82,7 +96,7 @@ class LightCurveWithConstraint:
         p = self.period
         self.phi = (t % p) / p  
         sorted_indices = np.argsort(self.phi)
-        return self.phi[sorted_indices]
+        return self.phi[sorted_indices], self.detrended_flux[sorted_indices]
 
     def plot(self, save_dir=None):
         fig, axs = plt.subplots(2, 1, figsize=(10, 10))
@@ -94,7 +108,6 @@ class LightCurveWithConstraint:
         axs[0].invert_yaxis()
         axs[0].legend()
 
-        
         axs[1].plot(self.data[:, 1], self.detrended_flux, color='r', label="Detrended Light Curve")
         axs[1].set_xlabel("Time")
         axs[1].set_ylabel("Detrended Magnitude")
@@ -104,37 +117,34 @@ class LightCurveWithConstraint:
 
         plt.tight_layout()
         if save_dir:
-            plt.savefig(os.path.join(save_dir, "light_curve.png"))
+            plt.savefig(os.path.join(save_dir, f"light_curve_{self.x_min}-{self.x_max}.png"))
         else:
             plt.show()
 
-        
         frequency, power, period_days = self.lomb_scargle()
         plt.figure()
         plt.plot(period_days, power, color='b', label="LS Periodogram")
         plt.xlabel("Period (days)")
         plt.ylabel("Power")
         plt.title("LS Periodogram")
-        plt.xlim(0,27)
+        plt.xlim(0, 27)
         plt.legend()
         if save_dir:
-            plt.savefig(os.path.join(save_dir, "periodogram.png"))
+            plt.savefig(os.path.join(save_dir, f"periodogram_{self.x_min}-{self.x_max}.png"))
         else:
             plt.show()
-        
-        
+
         if self.period is not None:
             plt.figure()
-            phi_sorted = self.phasefold()
-            sorted_indices = np.argsort(self.phi)
-            plt.scatter(phi_sorted, self.detrended_flux[sorted_indices], color='m', s=5, label="Phase Folded Curve")
+            phi_sorted, flux_sorted = self.phasefold()
+            plt.scatter(phi_sorted, flux_sorted, color='m', s=5, label="Phase Folded Curve")
             plt.xlabel("Phase")
             plt.ylabel("Magnitude")
             plt.title("Phase Folded Curve")
             plt.gca().invert_yaxis()
             plt.legend()
             if save_dir:
-                plt.savefig(os.path.join(save_dir, "phase_folded_curve.png"))
+                plt.savefig(os.path.join(save_dir, f"phase_folded_curve_{self.x_min}-{self.x_max}.png"))
             else:
                 plt.show()
 
@@ -142,4 +152,6 @@ class LightCurveWithConstraint:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         self.plot(save_dir)
+
+
 

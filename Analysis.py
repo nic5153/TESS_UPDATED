@@ -3,13 +3,13 @@ from LCWC import LightCurveWithConstraint
 import numpy as np
 
 
-filename = r"C:\Users\nic51\Code_Repos\Tess\Data\Extracted_Tarballs\TXT_Files\2019muu.txt"
-save_dir = r"C:\Users\nic51\OneDrive\Desktop\Super Outbursts\2019muu"
-target = '2019muu'
-x_min = 1689.5
-x_max = 1710
-period = .200988
-power = 0.322009
+filename = r"C:\Users\nic51\Code_Repos\Tess\Data\Extracted_Tarballs\TXT_Files\2020qit.txt"
+save_dir = r"C:\Users\nic51\OneDrive\Desktop\2020qit"
+target = '2020qit'
+x_min = 2053.6
+x_max = 2058
+period = .078245
+power = .410110
 
 
 lc = LightCurve(filename, target=target)

@@ -6,7 +6,7 @@ from scipy.signal import find_peaks
 from numpy.polynomial import Polynomial
 
 class LightCurveWithConstraint:
-    def __init__(self, filename, x_min=None, x_max=None, cadence_days=0.00277778, period=None, power=None, target=None):
+    def __init__(self, filename, x_min=None, x_max=None, cadence_days=0.00277778, period=None, power=None, target=None, peak_threshold=None):
         self.filename = filename
         self.x_min = x_min
         self.x_max = x_max
@@ -14,6 +14,7 @@ class LightCurveWithConstraint:
         self.period = period
         self.power = power
         self.target = target
+        self.peak_threshold = peak_threshold
 
         self.data = self._read_data()
         self.detrended_flux = None
@@ -32,7 +33,7 @@ class LightCurveWithConstraint:
                 return data
         except Exception as e:
             print(f"Error reading data: {e}")
-            return None
+            return np.loadtxt(self.filename, skiprows=1)
 
     def _compute_aic(self, flux, trend, k):
         resid = flux - trend
@@ -75,32 +76,35 @@ class LightCurveWithConstraint:
         if self.detrended_flux is None:
             raise ValueError("Please detrend the data before applying Lomb-Scargle periodogram.")
         
-        t = np.diff(self.data[:, 1])
-        max_frequency = 0.5 / np.mean(t)
+        t = self.data[:, 1]
+        max_frequency = 0.5 / np.mean(np.diff(t))
         frequency = np.linspace(0.0003, max_frequency, 10000)
-    
-        ls = LombScargle(self.data[:, 1], self.detrended_flux)
+        
+        ls = LombScargle(t, self.detrended_flux)
         power = ls.power(frequency)
         period_days = 1 / frequency
 
-        peaks, _ = find_peaks(power, height=0.10)
+        # Use peak_threshold to filter peaks
+        peaks, properties = find_peaks(power, height=self.peak_threshold)
         significant_periods = period_days[peaks]
         significant_powers = power[peaks]
-        
+
         if filter_alias:
             significant_periods, significant_powers = self._filter_aliases(frequency, power, significant_periods, significant_powers)
         
+
         print("Significant peaks:")
         for period, pwr in zip(significant_periods, significant_powers):
             print(f"Period: {period:.6f} days, Power: {pwr:.6f}")
+
         
         return frequency, power, period_days, significant_periods, significant_powers
+
     
     def _filter_aliases(self, frequency, power, periods, powers):
 
         window_ls = LombScargle(self.data[:, 1], np.ones_like(self.detrended_flux))
         window_power = window_ls.power(frequency)
-        
         
         window_peaks, _ = find_peaks(window_power, height=0.10)
         window_periods = 1 / frequency[window_peaks]
@@ -121,6 +125,26 @@ class LightCurveWithConstraint:
         phi = (t % p) / p  
         sorted_indices = np.argsort(phi)
         return phi[sorted_indices], self.detrended_flux[sorted_indices]
+
+    def _identify_harmonics(self, significant_periods, significant_powers, tolerance=0.05):
+        harmonics_info = []
+
+        for i, period in enumerate(significant_periods):
+            for j, other_period in enumerate(significant_periods):
+                if i != j:
+                    # Calculate the ratio and check if it's close to an integer (harmonic)
+                    ratio = other_period / period
+                    harmonic_order = round(ratio)
+
+                    if np.isclose(ratio, harmonic_order, rtol=tolerance):
+                        harmonic_period = harmonic_order * period
+
+                        # Check if this harmonic period is close to the other period
+                        if np.isclose(harmonic_period, other_period, rtol=tolerance):
+                            harmonics_info.append((i + 1, j + 1, harmonic_order, other_period))
+
+        return harmonics_info
+
 
     def plot(self, save_dir=None):
         fig, axs = plt.subplots(2, 1, figsize=(10, 10))
@@ -155,27 +179,38 @@ class LightCurveWithConstraint:
         ax.set_title(f"LS Periodogram of {self.target}")
         ax.set_xscale('log')
 
-        if significant_periods.size > 0:
-            text_content = "\n".join([f"Peak {i + 1}: Period = {period:.6f} days, Power = {power:.6f}" 
-                                    for i, (period, power) in enumerate(zip(significant_periods, significant_powers))])
+        text_content = []
+        harmonics_info = self._identify_harmonics(significant_periods, significant_powers)
 
-            plt.text(0.95, 0.95, text_content, 
+        if significant_periods.size > 0:
+            colors = plt.cm.jet(np.linspace(0, 1, len(significant_periods)))  # Generate colors
+
+            for i, (period, pwr) in enumerate(zip(significant_periods, significant_powers)):
+                ax.plot(period, pwr, 'o', color=colors[i], markersize=5, label=f'Peak {i + 1}')
+                ax.annotate(f'Peak {i + 1}', 
+                            (period, pwr),
+                            textcoords="offset points", 
+                            xytext=(0,10), 
+                            ha='center',
+                            color=colors[i])
+                text_content.append(f"Peak {i + 1}: Period = {period:.6f} days, Power = {pwr:.6f}")
+
+            for fundamental_index, harmonic_index, order, harmonic_period in harmonics_info:
+                harmonic_info = f"Harmonic {order} of Peak {fundamental_index} = Peak {harmonic_index} (Period = {harmonic_period:.6f} days)"
+                text_content.append(harmonic_info)
+
+            plt.text(0.95, 0.95, "\n".join(text_content), 
                     fontsize=12, va='top', ha='right', 
                     transform=plt.gca().transAxes, 
                     bbox=dict(facecolor='white', alpha=0.5))
-            
-        ax_inset = fig.add_axes([0.6, 0.46, 0.28, 0.3])
+
+        ax_inset = fig.add_axes([0.6, 0.36, 0.28, 0.3])
         ax_inset.plot(self.data[:, 1], self.detrended_flux, color='r')
         ax_inset.set_xlabel("Time (BTJD)")
         ax_inset.set_ylabel("Detrended Magnitude")
         ax_inset.set_title(f"Detrended Light Curve of {self.target}")
         ax_inset.invert_yaxis()
-        
-        ax.text(0.95, 0.95, text_content, 
-                    fontsize=12, va='top', ha='right', 
-                    transform=ax.transAxes, 
-                    bbox=dict(facecolor='white', alpha=0.5))
-        
+
         if save_dir:
             plt.savefig(os.path.join(save_dir, f"periodogram_{self.target}_{self.x_min}-{self.x_max}.png"))
         else:
@@ -193,7 +228,6 @@ class LightCurveWithConstraint:
             plt.title("Phase Folded Curve")
             plt.gca().invert_yaxis()
             plt.gcf().set_size_inches(18.5, 10.5)
-            
 
             period_text = f"Period: {self.period:.6f} days"
             plt.text(0.95, 0.95, period_text, 
@@ -201,7 +235,7 @@ class LightCurveWithConstraint:
                     verticalalignment='top', 
                     transform=plt.gca().transAxes, 
                     bbox=dict(facecolor='white', alpha=0.5))
-            
+
             if self.power is not None:
                 power_text = f"Power: {self.power:.6f}"
                 plt.text(0.95, 0.90, power_text, 
@@ -209,16 +243,10 @@ class LightCurveWithConstraint:
                         verticalalignment='top', 
                         transform=plt.gca().transAxes, 
                         bbox=dict(facecolor='white', alpha=0.5))
-            
+
             if save_dir:
                 plt.savefig(os.path.join(save_dir, f"phase_folded_curve_{self.target}_{self.x_min}-{self.x_max}_{self.period}days.png"))
             else:
                 plt.show()
-            
-
-
-    def save_plots(self, save_dir):
-        self.plot(save_dir)
-
 
 
